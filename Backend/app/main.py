@@ -4,6 +4,7 @@ import logging
 import tempfile
 import uuid 
 from pathlib import Path  
+import os
 
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -28,7 +29,7 @@ app = FastAPI(title="Livo Pronunciation Assessment API")
 app.add_middleware(
   CORSMiddleware,
   allow_origins=[settings.frontend_origin],
-  allow_origin=["POST", "GET"],
+  allow_methods=["POST", "GET"],
   allow_headers=["*"],
 )
 
@@ -65,39 +66,46 @@ async def assess_pronunciation(file: UploadFile = File(...)):
     raw_bytes = await file.read()
 
 
-    # writing to the temp file 
+    # writing to the temp file
 
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
-        tmp.write(raw_bytes)
-        tmp.flush()
-
-
+    fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+    try:
+        with os.fdopen(fd, "wb") as tmp:
+            tmp.write(raw_bytes)
+        # handle is now closed -- safe for other processes/libraries to open
+ 
         try:
-           audio_info = validation_duration(tmp.name)
+            audio_info = validation_duration(tmp_path)
         except AudioValidationError as e:
-           raise HTTPException(status_code=422, detail=str(e))
-        
-
-
+            raise HTTPException(status_code=422, detail=str(e))
+ 
         try:
-            transcription = transcribe(tmp.name)
+            transcription = transcribe(tmp_path)
         except Exception:
-            logger.exception("Transcription failed to submission %s", submission_id)
-
+            logger.exception("Transcription failed for submission %s", submission_id)
             raise HTTPException(
                 status_code=500,
-                detail="Could not transcribe this audio. Please try a clearer recording",
+                detail="Could not transcribe this audio. Please try a clearer recording.",
             )
-        
-
-
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            logger.warning("Could not remove temp file %s", tmp_path)
+ 
     if not transcription.text:
         raise HTTPException(
             status_code=422,
             detail="No speech was detected in this audio. Please upload a clear "
-            "English speech recording",
+            "English speech recording.",
         )
-    
+
+
+
+
+
+
+
 
 
 

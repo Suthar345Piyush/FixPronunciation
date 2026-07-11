@@ -9,7 +9,7 @@ class Settings(BaseSettings):
    
     s3_storage_access_key_id: str
     s3_storage_secret_access_key: str
-    s3_bucket_name: str
+    s3_storage_bucket_name: str
     s3_storage_region: str 
    
 
@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
 
     # faster-whisper fixed settings 
-    whisper_model_size: str = "medium.en"
+    whisper_model_size: str = "small.en"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
 
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # rules and restrictions 
     min_audio_seconds: float = 30.0
     max_audio_seconds: float = 45.0
-    data_retention_hours: int = 24
+    data_retention_hours: int = 48
 
 
 

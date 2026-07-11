@@ -15,13 +15,14 @@ import json
 import re 
 from dataclasses import dataclass
 
-import google.generativeai  as genai 
+import google.genai as genAI
 from app.config import settings
 from app.services.transcription import TranscriptionResult
 
 
 
-genai.configure(api_key=settings.gemini_api_key)
+# genAI.configure(api_key=settings.gemini_api_key)
+genAI.Client(api_key=settings.gemini_api_key)
 
 
 # detailed system prompt to LLM, to act him like a experienced english tutor, who mostly focus pronunciation and how the person is fluent in english  
@@ -102,7 +103,7 @@ def score_transcript(transcription: TranscriptionResult) -> ScoringResult:
         "low_confidence_words": low_conf,
     }
 
-    model = genai.GenerativeModel(
+    model = genAI.GenerativeModel(
         model_name=settings.gemini_model,
         system_instruction=SYSTEM_PROMPT,
         generation_config={"response_mime_type": "application/json"},
