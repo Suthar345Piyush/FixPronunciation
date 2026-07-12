@@ -4,62 +4,91 @@
 
 # using s3 methods for storage like - s3:PutObject, s3:GetObject, s3:DeleteObject 
 
-
 # for DPDP - the expires-at metadata tag, and s3 lifecycle automatically delete them when data_retention_hours reached, or their is an immediate on-request deletion, if user want to delete their data early on 
 
 
 
 import boto3
-from botocore.config import Config 
+
+from botocore.client import BaseClient
+from botocore.config import Config
+from botocore.exceptions import ClientError
+
 from datetime import datetime, timedelta, timezone
 from app.config import settings
 
 
 
-# making s3 client using boto3 
 
-def get_storage_client():
-    client = boto3.client(
-        's3',
-        s3_storage_access_key_id=settings.s3_storage_access_key_id,
-        s3_storage_secret_access_key=settings.s3_storage_secret_access_key,
-        s3_storage_region=settings.s3_storage_region,
-        config=Config(signature_version="s3v4")
-    )
+# s3 client with boto3 
 
-    return client
+s3_client: BaseClient = boto3.client(
+   "s3",
+   aws_access_key_id=settings.s3_storage_access_key_id,
+   aws_secret_access_key=settings.s3_storage_secret_access_key,
+   region_name=settings.s3_storage_region,
+   config=Config(signature_version="s3v4"),
+)
 
 
+# upload file function 
 
-
-# file upload on s3 bucket 
 
 def upload_file(key: str, data: bytes, content_type: str) -> str:
-    client = get_storage_client()
+  
+  # expiration (object deletion) after data_retention_hours = 48hrs from first upload 
 
-    # expires_at metadata tag for data deletion 
-    expires_at = (
-        datetime.now(timezone.utc) * timezone(hours=settings.data_retention_hours)
-    ).isoformat()
+  expires_at = (
+     datetime.now(timezone.utc) + timedelta(hours=settings.data_retention_hours)
+  ).isoformat()
 
 
+  # putting object (put_object) to the s3 client 
 
-    # upload 
-    client.put_object(
-        Bucket=settings.s3_bucket_name,
-        Key=key,
-        Body=data,
-        ContentType=content_type,
-        Metadata={"expires-at": expires_at, "purpose": "pronunciation-assessment"},
+  try:
+    s3_client.put_object(
+      Bucket=settings.s3_storage_bucket_name,
+      Key=key,
+      Body=data,
+      Content_type=content_type,
+      Metadata={
+        "purpose": "pronunciation-app",
+        "expires_at": expires_at,
+      },
+      ServerSideEncryption="AES256",
     )
 
+
     return key
+  
+
+  except ClientError as e:
+      raise RuntimeError(f"Failed to upload the object: {e}")
+  
 
 
 
-# delete the object from s3 bucket
+# delete the object 
+  
 
 def delete_object(key: str) -> None:
-    client = get_storage_client()
-    client.delete_object(Bucket=settings.s3_bucket_name, Key=key)
+     
+     try:
+        s3_client.delete_object(
+           Bucket=settings.s3_storage_bucket_name,
+           Key=key,
+        )
+
+
+     except ClientError as e:
+        raise RuntimeError(f"Failed to delete the object:{e}")
+
+
+
+
+
+
+
+
+
 
