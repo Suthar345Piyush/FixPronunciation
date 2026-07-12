@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # gemini part used for scoring pronunciation 
     gemini_api_key: str 
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
 
 
     # faster-whisper fixed settings 

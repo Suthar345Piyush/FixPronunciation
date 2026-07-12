@@ -11,18 +11,23 @@ Some limitations : the faster-whisper transcription don't carry the stress, into
 
 
 
-import json 
+# import json 
 import re 
 from dataclasses import dataclass
 
-import google.genai as genAI
+from google.genai  import types
+from google import genai
 from app.config import settings
 from app.services.transcription import TranscriptionResult
 
 
 
 # genAI.configure(api_key=settings.gemini_api_key)
-genAI.Client(api_key=settings.gemini_api_key)
+# genAI.Client(api_key=settings.gemini_api_key)
+
+client = genai.Client(api_key=settings.gemini_api_key)
+
+
 
 
 # detailed system prompt to LLM, to act him like a experienced english tutor, who mostly focus pronunciation and how the person is fluent in english  
@@ -91,11 +96,15 @@ def _strip_json_fences(text: str) -> str:
 # score transcript 
 
 def score_transcript(transcription: TranscriptionResult) -> ScoringResult:
-    
     low_conf = [
-        {"word": w.word, "start": w.start, "end": w.end, "probability": w.probability}
+        {
+            "word": w.word,
+            "start": w.start,
+            "end": w.end,
+            "probability": w.probability,
+        }
         for w in transcription.low_confidence_words
-    ] 
+    ]
 
 
     user_payload = {
@@ -103,30 +112,18 @@ def score_transcript(transcription: TranscriptionResult) -> ScoringResult:
         "low_confidence_words": low_conf,
     }
 
-    model = genAI.GenerativeModel(
-        model_name=settings.gemini_model,
-        system_instruction=SYSTEM_PROMPT,
-        generation_config={"response_mime_type": "application/json"},
+
+    # final response  
+
+    response = client.models.generate_content(
+        model=settings.gemini_model,
+        contents=str(user_payload),
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type="application/json",
+        )
     )
 
 
-
-    response = model.generate_content(json.dumps(user_payload))
-
-    raw = _strip_json_fences(response.text)
-    parsed = json.loads(raw)
-
-
-    return ScoringResult(
-        pronunciation_score=int(parsed["pronunciation_score"]),
-        fluency_notes=parsed["fluency_notes"],
-        mistakes=parsed.get("mistakes", []),
-    )
-
-
-
-
-
-
-
+    return response.text
 
