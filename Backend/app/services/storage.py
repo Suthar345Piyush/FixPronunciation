@@ -50,7 +50,7 @@ def upload_file(key: str, data: bytes, content_type: str) -> str:
       Bucket=settings.s3_storage_bucket_name,
       Key=key,
       Body=data,
-      Content_type=content_type,
+      ContentType=content_type,
       Metadata={
         "purpose": "pronunciation-app",
         "expires_at": expires_at,
@@ -62,7 +62,7 @@ def upload_file(key: str, data: bytes, content_type: str) -> str:
     return key
   
 
-  except ClientError as e:
+  except (ClientError, Exception) as e:
       raise RuntimeError(f"Failed to upload the object: {e}")
   
 

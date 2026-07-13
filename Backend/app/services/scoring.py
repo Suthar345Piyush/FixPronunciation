@@ -10,23 +10,18 @@ Some limitations : the faster-whisper transcription don't carry the stress, into
 """
 
 
-
-# import json 
-import re 
+import json 
+import re
 from dataclasses import dataclass
+from openrouter import OpenRouter
 
-from google.genai  import types
-from google import genai
 from app.config import settings
 from app.services.transcription import TranscriptionResult
 
 
 
-# genAI.configure(api_key=settings.gemini_api_key)
-# genAI.Client(api_key=settings.gemini_api_key)
 
-client = genai.Client(api_key=settings.gemini_api_key)
-
+_client: OpenRouter | None = None
 
 
 
@@ -34,8 +29,8 @@ client = genai.Client(api_key=settings.gemini_api_key)
 
 
 SYSTEM_PROMPT= """
-  
   You, are a strict, experienced English pronunciation and fluency coach.
+
   You are grading a 30-45 second spoken English audio clip based on:
   1. The transcript produced by an ASR model.
   2. A list of words the ASR model was NOT confident about (low probability), which usually means the audio was unclear, mumbled or mispronounced at that point.
@@ -85,26 +80,33 @@ class ScoringResult:
 
 
 
+def get_client() -> OpenRouter:
+    global _client
+    if _client is None:
+        _client = OpenRouter(
+            api_key=settings.openrouter_api_key
+        )
+
+    return _client
+
+
+
 def _strip_json_fences(text: str) -> str:
     text = text.strip()
     text = re.sub(r"^```(json)?", "", text).strip()
     text = re.sub(r"```$", "", text).strip()
-    return text
+    return text 
 
 
 
-# score transcript 
+
 
 def score_transcript(transcription: TranscriptionResult) -> ScoringResult:
     low_conf = [
-        {
-            "word": w.word,
-            "start": w.start,
-            "end": w.end,
-            "probability": w.probability,
-        }
-        for w in transcription.low_confidence_words
+        {"word": w.word, "start": w.start, "end": w.end, "probability": w.probability
+        } for w in transcription.low_confidence_words
     ]
+
 
 
     user_payload = {
@@ -113,17 +115,35 @@ def score_transcript(transcription: TranscriptionResult) -> ScoringResult:
     }
 
 
-    # final response  
 
-    response = client.models.generate_content(
-        model=settings.gemini_model,
-        contents=str(user_payload),
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            response_mime_type="application/json",
-        )
+    client = get_client()
+    response = client.chat.send(
+        model=settings.openrouter_model,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": json.dumps(user_payload)},
+        ],
+
+        response_format={"type", "json_schema"},
+        temperature=0.2,
+
+        # reasoning={"effort": False}
     )
 
 
-    return response.text
+    raw = _strip_json_fences(response.choices[0].message.content)
+    parsed = json.loads(raw)
+
+    return ScoringResult(
+        pronunciation_score=int(parsed["pronunciation_score"]),
+        fluency_notes=parsed["fluency_notes"],
+        mistakes=parsed.get("mistakes", []),
+    )
+
+
+
+    
+
+
+
 
