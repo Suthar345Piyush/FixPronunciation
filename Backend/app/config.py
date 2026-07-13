@@ -14,8 +14,8 @@ class Settings(BaseSettings):
    
 
     # gemini part used for scoring pronunciation 
-    gemini_api_key: str 
-    gemini_model: str = "gemini-2.5-flash"
+    openrouter_api_key: str
+    openrouter_model: str = "qwen/qwen3-32b"
 
 
     # faster-whisper fixed settings 
